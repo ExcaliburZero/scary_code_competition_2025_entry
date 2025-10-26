@@ -1,6 +1,7 @@
 #![feature(variant_count)]
 
-use rand::Rng;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::prelude::*;
 use std::{io, mem};
@@ -8,73 +9,115 @@ use std::{io, mem};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
+const RESPONSE_TEMPLATES: [&str; 4] = [
+    "Hello, {}! Nice to meet you!",
+    "Nice to meet you {}!",
+    "Hey {}! Did you see the Mets game last night? Was a real nail-biter!",
+    "Greetings {}! It is a pleasure to make your acquaintance.",
+];
+
 fn main() {
-    /*println!("Please enter your name:");
+    println!("Please enter your name:");
     print!("> ");
     io::stdout().flush().unwrap();
+    let user_name = read_user_name();
 
+    let mut rng = create_rng(&user_name);
+    let mut game = Game::from_rng(&mut rng);
+
+    let result = game.play(&mut rng);
+    match result {
+        GameResult::Win => println!("{}", game.response_template),
+        GameResult::Loss(num_dungeons_completed) => println!(
+            "{}",
+            game.response_template_parts
+                .iter()
+                .take(num_dungeons_completed as usize)
+                .map(|s| s.replace("{}", &user_name))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ),
+    }
+    println!("{result:?}");
+}
+
+fn read_user_name() -> String {
     let stdin = io::stdin();
-
     let mut user_name = "".to_string();
     stdin.lock().read_line(&mut user_name).unwrap();
-    user_name = user_name.trim().to_string();
+    user_name.trim().to_string()
+}
 
-    let mut player = Creature::create_player(&user_name);
-    println!("{player:?}");*/
+fn create_rng(user_name: &str) -> StdRng {
+    let mut s = DefaultHasher::new();
+    user_name.hash(&mut s);
+    let seed = s.finish();
 
-    let mut rng = rand::rng();
+    StdRng::seed_from_u64(seed)
+}
 
-    let seeds: Vec<u64> = vec![
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-        rng.random(),
-    ];
+struct Game {
+    player: Creature,
+    dungeons: Vec<Dungeon>,
+    response_template: String,
+    response_template_parts: Vec<String>,
+}
 
-    for st in seeds {
-        let mut s = DefaultHasher::new();
-        st.hash(&mut s);
-        let seed = s.finish();
+impl Game {
+    fn from_rng(rng: &mut StdRng) -> Game {
+        let player = Creature::create_player(rng.random());
 
-        let dungeon = Dungeon::from_hash(seed);
+        let response_template = RESPONSE_TEMPLATES
+            [(rng.random::<u64>() % RESPONSE_TEMPLATES.len() as u64) as usize]
+            .to_string();
+        let response_template_parts: Vec<String> = response_template
+            .split(" ")
+            .map(|s| s.to_string())
+            .collect();
 
-        println!("{}", dungeon.get_name());
-    }
+        let dungeons: Vec<Dungeon> = (0..response_template_parts.len())
+            .into_iter()
+            .map(|_| Dungeon::from_hash(rng.random()))
+            .collect();
 
-    /*let mut game_result = Option::None;
-    for _ in 0..5 {
-        let mut enemy = Creature::create_player("Bat");
-        //println!("{:?}", enemy);
-
-        let fight_result = player.fight(&mut enemy);
-        if let FightResult::Loss = fight_result {
-            if player.lives == 0 {
-                game_result = Some(GameResult::Loss);
-                break;
-            } else {
-                player.lives -= 1;
-                player.current_hp = player.max_hp;
-            }
+        Game {
+            player,
+            dungeons,
+            response_template,
+            response_template_parts,
         }
     }
 
-    println!("{game_result:?}");*/
+    fn play(&mut self, rng: &mut StdRng) -> GameResult {
+        let mut game_result = GameResult::Win;
+        for i in 0..self.dungeons.len() {
+            let dungeon = &self.dungeons[i];
+
+            for j in 0..5 {
+                let mut enemy = Creature::create_player(rng.random());
+                //println!("{:?}", enemy);
+
+                let fight_result = self.player.fight(&mut enemy);
+                if let FightResult::Loss = fight_result {
+                    if self.player.lives == 0 {
+                        game_result = GameResult::Loss(i as i32 - 1);
+                        break;
+                    } else {
+                        self.player.lives -= 1;
+                        self.player.current_hp = self.player.max_hp;
+                    }
+                }
+            }
+        }
+
+        game_result
+    }
 }
 
 #[derive(Debug)]
 enum GameResult {
-    Win(String),
-    Loss,
+    Win,
+    Loss(i32),
 }
 
 enum FightResult {
@@ -104,17 +147,12 @@ struct Creature {
 }
 
 impl Creature {
-    fn create_player(user_name: &str) -> Creature {
-        let mut s = DefaultHasher::new();
-        user_name.hash(&mut s);
-        let seed = s.finish();
-
+    fn create_player(seed: u64) -> Creature {
         let hp_seed = seed & 0x1111;
         let attack_seed = seed & 0x1111;
         let attack_seed = seed & 0x1111;
 
-        //let name = "Tim".to_string();
-        let name = user_name.to_string();
+        let name = "Tim".to_string();
         let max_hp = 20;
         let current_hp = max_hp;
         let attack = 8;
