@@ -2,6 +2,7 @@
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use std::cmp::max;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::prelude::*;
 use std::{io, mem};
@@ -65,7 +66,19 @@ struct Game {
 
 impl Game {
     fn from_rng(rng: &mut StdRng) -> Game {
-        let player = Creature::create_player(rng.random());
+        let player = Creature::create(
+            CreatureType::Player,
+            &StatPattern {
+                hp: 1.0,
+                attack: 1.0,
+                defense: 1.0,
+                magic: 1.0,
+                wisdom: 1.0,
+                speed: 1.0,
+            },
+            1,
+            rng,
+        );
 
         let response_template = RESPONSE_TEMPLATES
             [(rng.random::<u64>() % RESPONSE_TEMPLATES.len() as u64) as usize]
@@ -77,7 +90,7 @@ impl Game {
 
         let dungeons: Vec<Dungeon> = (0..response_template_parts.len())
             .into_iter()
-            .map(|_| Dungeon::from_hash(rng.random()))
+            .map(|level| Dungeon::from_hash(rng.random(), level as u32))
             .collect();
 
         Game {
@@ -89,19 +102,19 @@ impl Game {
     }
 
     fn play(&mut self, rng: &mut StdRng) -> GameResult {
-        let mut game_result = GameResult::Win;
+        println!("{:?}", self.player);
         for i in 0..self.dungeons.len() {
             let dungeon = &self.dungeons[i];
+            println!("{} enters {}", self.player.name, dungeon.get_name());
 
             for j in 0..5 {
-                let mut enemy = Creature::create_player(rng.random());
-                //println!("{:?}", enemy);
+                let mut enemy = dungeon.create_enemy(rng);
+                println!("{:?}", enemy);
 
                 let fight_result = self.player.fight(&mut enemy);
                 if let FightResult::Loss = fight_result {
                     if self.player.lives == 0 {
-                        game_result = GameResult::Loss(i as i32 - 1);
-                        break;
+                        return GameResult::Loss(i as i32 - 1);
                     } else {
                         self.player.lives -= 1;
                         self.player.current_hp = self.player.max_hp;
@@ -110,7 +123,7 @@ impl Game {
             }
         }
 
-        game_result
+        GameResult::Win
     }
 }
 
@@ -147,19 +160,28 @@ struct Creature {
 }
 
 impl Creature {
-    fn create_player(seed: u64) -> Creature {
-        let hp_seed = seed & 0x1111;
-        let attack_seed = seed & 0x1111;
-        let attack_seed = seed & 0x1111;
+    fn create(
+        creature_type: CreatureType,
+        stat_pattern: &StatPattern,
+        level: u32,
+        rng: &mut StdRng,
+    ) -> Creature {
+        let name = format!("{:?}", creature_type);
 
-        let name = "Tim".to_string();
-        let max_hp = 20;
+        let max_hp =
+            (20.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
+        let attack =
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
+        let defense =
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
+        let magic =
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
+        let wisdom =
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
+        let speed =
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
+
         let current_hp = max_hp;
-        let attack = 8;
-        let defense = 5;
-        let magic = 5;
-        let wisdom = 5;
-        let speed = 5;
         let exp = 0;
         let level = 1;
         let lives = 3;
@@ -187,10 +209,10 @@ impl Creature {
         };
 
         loop {
-            if self.current_hp < 0 {
-                println!("{} is out of health!", self.name);
+            if self.current_hp <= 0 {
+                println!("{} lost a life!", self.name);
                 return FightResult::Loss;
-            } else if other.current_hp < 0 {
+            } else if other.current_hp <= 0 {
                 println!("{} is out of health!", other.name);
                 return FightResult::Win;
             }
@@ -206,17 +228,63 @@ impl Creature {
     }
 
     fn attack(&self, other: &mut Creature) {
-        let damage = self.attack - other.defense;
+        let damage = max(self.attack - other.defense, 1);
 
-        /*println!(
+        println!(
             "{} does {} damage to {} ({} -> {})",
             self.name,
             damage,
             other.name,
             other.current_hp,
             other.current_hp - damage
-        );*/
+        );
         other.current_hp -= damage;
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CreatureType {
+    Player,
+    // Common
+    Bat,
+    Goblin,
+    Slime,
+    Orc,
+    // Uncommon
+    Kitsune,
+    Pixie,
+    // Bosses
+    HighOrc,
+    Golem,
+}
+
+#[derive(Debug)]
+struct StatPattern {
+    hp: f32,
+    attack: f32,
+    defense: f32,
+    magic: f32,
+    wisdom: f32,
+    speed: f32,
+}
+
+impl StatPattern {
+    fn new(hp: f32, attack: f32, defense: f32, magic: f32, wisdom: f32, speed: f32) -> StatPattern {
+        StatPattern {
+            hp,
+            attack,
+            defense,
+            magic,
+            wisdom,
+            speed,
+        }
+    }
+}
+
+fn get_enemy_stat_pattern(enemy_type: CreatureType) -> StatPattern {
+    match enemy_type {
+        CreatureType::Bat => StatPattern::new(0.5, 0.5, 0.5, 0.5, 0.5, 0.7),
+        _ => panic!(),
     }
 }
 
@@ -351,10 +419,11 @@ struct Dungeon {
     pub location: LocationType,
     pub element: ElementAdjective,
     pub noun: Noun,
+    pub level: u32,
 }
 
 impl Dungeon {
-    fn from_hash(hash: u64) -> Dungeon {
+    fn from_hash(hash: u64, level: u32) -> Dungeon {
         let location_part = (hash & 0xFF) % mem::variant_count::<LocationType>() as u64;
         let element_part = ((hash & 0xFF00) >> 8) % mem::variant_count::<ElementAdjective>() as u64;
         let noun_part = ((hash & 0xFF0000) >> 16) % mem::variant_count::<Noun>() as u64;
@@ -367,10 +436,17 @@ impl Dungeon {
             location,
             element,
             noun,
+            level,
         }
     }
 
     fn get_name(&self) -> String {
         format!("{:?} of {:?} {:?}", self.location, self.element, self.noun)
+    }
+
+    fn create_enemy(&self, rng: &mut StdRng) -> Creature {
+        let creature_type = CreatureType::Bat;
+        let stat_pattern = get_enemy_stat_pattern(creature_type);
+        Creature::create(creature_type, &stat_pattern, self.level, rng)
     }
 }
