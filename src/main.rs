@@ -112,16 +112,16 @@ impl Game {
         println!("{:?}", self.player);
         let mut i = 0;
         let mut max_dungeon_won = 0;
-        let mut rentering = false;
+        let mut reentering = false;
         while i < self.dungeons.len() {
             let dungeon = &self.dungeons[i];
             self.player.current_hp = self.player.max_hp;
 
-            if !rentering {
+            if !reentering {
                 println!("-------------------------");
                 println!("{} enters {}", self.player.name, dungeon.get_name());
             }
-            rentering = false;
+            reentering = false;
 
             max_dungeon_won = max(i, max_dungeon_won);
 
@@ -145,7 +145,7 @@ impl Game {
                         }
 
                         j = 0;
-                        rentering = true;
+                        reentering = true;
                         let dungeon = &self.dungeons[i];
                         println!("-------------------------");
                         println!("{} re-enters {}", self.player.name, dungeon.get_name());
