@@ -1,8 +1,10 @@
 #![feature(variant_count)]
 
 use rand::rngs::StdRng;
+use rand::seq::IndexedRandom;
 use rand::{Rng, SeedableRng};
-use std::cmp::max;
+use std::cmp::{max, min};
+use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::prelude::*;
 use std::{io, mem};
@@ -10,11 +12,14 @@ use std::{io, mem};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-const RESPONSE_TEMPLATES: [&str; 4] = [
+const RESPONSE_TEMPLATES: [&str; 7] = [
     "Hello, {}! Nice to meet you!",
-    "Nice to meet you {}!",
+    "Nice to meet you {}! You seem like a pleasant person!",
     "Hey {}! Did you see the Mets game last night? Was a real nail-biter!",
     "Greetings {}! It is a pleasure to make your acquaintance.",
+    "Good morning {}! Isn't it a lovely day today?",
+    "How's it going {}? Did you finish that project you were working on?",
+    "Greetings fellow human, {}! Tis a great day to have skin and bones, is it not?",
 ];
 
 fn main() {
@@ -39,7 +44,6 @@ fn main() {
                 .join(" ")
         ),
     }
-    println!("{result:?}");
 }
 
 fn read_user_name() -> String {
@@ -107,6 +111,7 @@ impl Game {
         let mut max_dungeon_won = 0;
         while i < self.dungeons.len() {
             let dungeon = &self.dungeons[i];
+            self.player.current_hp = self.player.max_hp;
             println!("{} enters {}", self.player.name, dungeon.get_name());
 
             max_dungeon_won = max(i, max_dungeon_won);
@@ -241,6 +246,7 @@ impl Creature {
         self.exp += exp_increase;
         while self.exp >= 100 {
             self.level += 1;
+            self.lives = min(self.lives + 1, 3);
             println!("{} leveled up to level {}!", self.name, self.level);
 
             self.exp = self.exp - 100;
@@ -308,6 +314,7 @@ enum CreatureType {
     Player,
     // Common
     Bat,
+    Dog,
     Goblin,
     Slime,
     Orc,
@@ -354,8 +361,11 @@ impl StatPattern {
 fn get_enemy_stat_pattern(enemy_type: CreatureType, multiplier: f32) -> StatPattern {
     let mut stat_pattern = match enemy_type {
         CreatureType::Bat => StatPattern::new(0.4, 0.4, 0.4, 0.4, 0.4, 2.0),
+        CreatureType::Dog => StatPattern::new(0.5, 0.6, 0.5, 0.5, 0.5, 2.0),
+        CreatureType::Slime => StatPattern::new(0.5, 0.4, 1.0, 0.5, 0.3, 0.5),
         CreatureType::Orc => StatPattern::new(0.6, 0.6, 0.6, 0.2, 0.2, 0.4),
         CreatureType::Kitsune => StatPattern::new(0.7, 0.2, 0.7, 1.0, 1.0, 1.5),
+        CreatureType::Pixie => StatPattern::new(0.4, 0.2, 0.5, 2.0, 2.0, 1.5),
         _ => panic!(),
     };
 
@@ -524,22 +534,51 @@ impl Dungeon {
     }
 
     fn create_enemy(&self, rng: &mut StdRng, is_boss: bool) -> Creature {
-        let creature_type = if self.level == 1 {
-            if !is_boss {
-                CreatureType::Bat
-            } else {
-                CreatureType::Orc
-            }
-        } else if self.level == 2 {
-            if !is_boss {
-                CreatureType::Orc
-            } else {
-                CreatureType::Kitsune
-            }
-        } else {
-            CreatureType::Kitsune
-        };
-        let stat_pattern = get_enemy_stat_pattern(creature_type, if is_boss { 1.15 } else { 1.0 });
+        let creature_type_mapping = HashMap::from([
+            (
+                (1, false),
+                vec![CreatureType::Bat, CreatureType::Dog, CreatureType::Slime],
+            ),
+            ((1, true), vec![CreatureType::Orc]),
+            (
+                (2, false),
+                vec![
+                    CreatureType::Bat,
+                    CreatureType::Dog,
+                    CreatureType::Slime,
+                    CreatureType::Orc,
+                ],
+            ),
+            ((2, true), vec![CreatureType::Kitsune]),
+            (
+                (3, false),
+                vec![
+                    CreatureType::Bat,
+                    CreatureType::Dog,
+                    CreatureType::Slime,
+                    CreatureType::Orc,
+                    CreatureType::Kitsune,
+                ],
+            ),
+            ((3, true), vec![CreatureType::Pixie]),
+        ]);
+
+        let default_types = vec![
+            CreatureType::Bat,
+            CreatureType::Dog,
+            CreatureType::Slime,
+            CreatureType::Orc,
+            CreatureType::Kitsune,
+            CreatureType::Pixie,
+        ];
+
+        let creature_types = creature_type_mapping
+            .get(&(self.level, is_boss))
+            .or(Some(&default_types))
+            .unwrap();
+
+        let creature_type = *creature_types.choose(rng).unwrap();
+        let stat_pattern = get_enemy_stat_pattern(creature_type, if is_boss { 2.0 } else { 1.0 });
         Creature::create(creature_type, &stat_pattern, self.level + 1, rng)
     }
 }
