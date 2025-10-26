@@ -12,7 +12,7 @@ use std::{io, mem};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-const RESPONSE_TEMPLATES: [&str; 8] = [
+const RESPONSE_TEMPLATES: [&str; 9] = [
     "Hello, {}! Nice to meet you!",
     "Nice to meet you {}! You seem like a pleasant person!",
     "Hey {}! Did you see the Mets game last night? Was a real nail-biter!",
@@ -21,6 +21,7 @@ const RESPONSE_TEMPLATES: [&str; 8] = [
     "How's it going {}? Did you finish that project you were working on?",
     "Greetings fellow human, {}! Tis a great day to have skin and bones, is it not?",
     "Hey {}! Have you ever wondered about what Mario is thinking? Who knows why he crushes turtles? And why do we think about him as fondly as we think of the mythical (nonexistant?) Dr Pepper? Perchance.",
+    "Creation is an inviolate act, and those searching for the divine need not descend to Hell for fuel. That's why I don't go to Denny's anymore, {}.",
 ];
 
 fn main() {
