@@ -12,7 +12,7 @@ use std::{io, mem};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-const RESPONSE_TEMPLATES: [&str; 7] = [
+const RESPONSE_TEMPLATES: [&str; 8] = [
     "Hello, {}! Nice to meet you!",
     "Nice to meet you {}! You seem like a pleasant person!",
     "Hey {}! Did you see the Mets game last night? Was a real nail-biter!",
@@ -20,6 +20,7 @@ const RESPONSE_TEMPLATES: [&str; 7] = [
     "Good morning {}! Isn't it a lovely day today?",
     "How's it going {}? Did you finish that project you were working on?",
     "Greetings fellow human, {}! Tis a great day to have skin and bones, is it not?",
+    "Hey {}! Have you ever wondered about what Mario is thinking? Who knows why he crushes turtles? And why do we think about him as fondly as we think of the mythical (nonexistant?) Dr Pepper? Perchance.",
 ];
 
 fn main() {
@@ -81,6 +82,7 @@ impl Game {
                 speed: 1.5 + rng.random_range(-0.5..0.5),
             },
             1,
+            false,
             rng,
         );
 
@@ -109,10 +111,16 @@ impl Game {
         println!("{:?}", self.player);
         let mut i = 0;
         let mut max_dungeon_won = 0;
+        let mut rentering = false;
         while i < self.dungeons.len() {
             let dungeon = &self.dungeons[i];
             self.player.current_hp = self.player.max_hp;
-            println!("{} enters {}", self.player.name, dungeon.get_name());
+
+            if !rentering {
+                println!("-------------------------");
+                println!("{} enters {}", self.player.name, dungeon.get_name());
+            }
+            rentering = false;
 
             max_dungeon_won = max(i, max_dungeon_won);
 
@@ -136,15 +144,20 @@ impl Game {
                         }
 
                         j = 0;
+                        rentering = true;
+                        let dungeon = &self.dungeons[i];
+                        println!("-------------------------");
                         println!("{} re-enters {}", self.player.name, dungeon.get_name());
-                        continue;
+                        break;
                     }
                 }
                 self.player.award_win(&enemy);
                 j += 1;
             }
 
-            i += 1;
+            if j != 0 {
+                i += 1;
+            }
         }
 
         GameResult::Win
@@ -189,9 +202,10 @@ impl Creature {
         creature_type: CreatureType,
         stat_pattern: &StatPattern,
         level: u32,
+        is_boss: bool,
         rng: &mut StdRng,
     ) -> Creature {
-        let name = format!("{:?}", creature_type);
+        let name = format!("{}{:?}", if is_boss { "Boss " } else { "" }, creature_type);
 
         let max_hp = max(
             (20.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
@@ -579,6 +593,6 @@ impl Dungeon {
 
         let creature_type = *creature_types.choose(rng).unwrap();
         let stat_pattern = get_enemy_stat_pattern(creature_type, if is_boss { 2.0 } else { 1.0 });
-        Creature::create(creature_type, &stat_pattern, self.level + 1, rng)
+        Creature::create(creature_type, &stat_pattern, self.level + 1, is_boss, rng)
     }
 }
