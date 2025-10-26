@@ -28,7 +28,7 @@ fn main() {
 
     let result = game.play(&mut rng);
     match result {
-        GameResult::Win => println!("{}", game.response_template),
+        GameResult::Win => println!("{}", game.response_template.replace("{}", &user_name)),
         GameResult::Loss(num_dungeons_completed) => println!(
             "{}",
             game.response_template_parts
@@ -69,12 +69,12 @@ impl Game {
         let player = Creature::create(
             CreatureType::Player,
             &StatPattern {
-                hp: 1.5,
-                attack: 2.0,
-                defense: 1.5,
-                magic: 2.0,
-                wisdom: 1.5,
-                speed: 1.5,
+                hp: 1.5 + rng.random_range(-0.5..0.5),
+                attack: 2.0 + rng.random_range(-0.5..0.5),
+                defense: 1.5 + rng.random_range(-0.5..0.5),
+                magic: 2.0 + rng.random_range(-0.5..0.5),
+                wisdom: 1.5 + rng.random_range(-0.5..0.5),
+                speed: 1.5 + rng.random_range(-0.5..0.5),
             },
             1,
             rng,
@@ -90,7 +90,7 @@ impl Game {
 
         let dungeons: Vec<Dungeon> = (0..response_template_parts.len())
             .into_iter()
-            .map(|level| Dungeon::from_hash(rng.random(), level as u32))
+            .map(|level| Dungeon::from_hash(rng.random(), (level + 1) as u32))
             .collect();
 
         Game {
@@ -103,29 +103,43 @@ impl Game {
 
     fn play(&mut self, rng: &mut StdRng) -> GameResult {
         println!("{:?}", self.player);
-        for i in 0..self.dungeons.len() {
+        let mut i = 0;
+        let mut max_dungeon_won = 0;
+        while i < self.dungeons.len() {
             let dungeon = &self.dungeons[i];
             println!("{} enters {}", self.player.name, dungeon.get_name());
 
+            max_dungeon_won = max(i, max_dungeon_won);
+
             let mut j = 0;
             while j < 5 {
-                let mut enemy = dungeon.create_enemy(rng);
-                // println!("{:?}", enemy);
+                let dungeon = &self.dungeons[i];
+                let mut enemy = dungeon.create_enemy(rng, j == 4);
+                //println!("{:?}", enemy);
 
                 let fight_result = self.player.fight(&mut enemy);
                 if let FightResult::Loss = fight_result {
                     if self.player.lives == 0 {
-                        return GameResult::Loss(i as i32 - 1);
+                        return GameResult::Loss(i as i32);
                     } else {
                         self.player.lives -= 1;
                         self.player.current_hp = self.player.max_hp;
+
+                        if j == 0 && i > 0 {
+                            // Go back to the last dungeon if player immediately failed the new dungeon
+                            i -= 1;
+                        }
+
                         j = 0;
                         println!("{} re-enters {}", self.player.name, dungeon.get_name());
                         continue;
                     }
                 }
+                self.player.award_win(&enemy);
                 j += 1;
             }
+
+            i += 1;
         }
 
         GameResult::Win
@@ -162,6 +176,7 @@ struct Creature {
     exp: i32,
     level: i32,
     lives: i32,
+    stat_pattern: StatPattern,
 }
 
 impl Creature {
@@ -178,23 +193,24 @@ impl Creature {
             5,
         );
         let attack = max(
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            (5.0 * stat_pattern.attack * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
             1,
         );
         let defense = max(
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            (5.0 * stat_pattern.defense * level as f32 + (5.0 * rng.random_range(-1.0..1.0)))
+                as i32,
             1,
         );
         let magic = max(
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            (5.0 * stat_pattern.magic * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
             1,
         );
         let wisdom = max(
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            (5.0 * stat_pattern.wisdom * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
             1,
         );
         let speed = max(
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            (5.0 * stat_pattern.speed * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
             1,
         );
 
@@ -215,6 +231,28 @@ impl Creature {
             exp,
             level,
             lives,
+            stat_pattern: stat_pattern.clone(),
+        }
+    }
+
+    fn award_win(&mut self, other: &Creature) {
+        let exp_increase = max(other.level - (self.level - 1), 1) * 12;
+
+        self.exp += exp_increase;
+        while self.exp >= 100 {
+            self.level += 1;
+            println!("{} leveled up to level {}!", self.name, self.level);
+
+            self.exp = self.exp - 100;
+
+            self.max_hp += (20.0 * self.stat_pattern.hp) as i32;
+            self.attack += (5.0 * self.stat_pattern.attack) as i32;
+            self.defense += (5.0 * self.stat_pattern.defense) as i32;
+            self.magic += (5.0 * self.stat_pattern.magic) as i32;
+            self.wisdom += (5.0 * self.stat_pattern.wisdom) as i32;
+            self.speed += (5.0 * self.stat_pattern.speed) as i32;
+
+            self.current_hp = self.max_hp;
         }
     }
 
@@ -231,8 +269,8 @@ impl Creature {
                 return FightResult::Loss;
             } else if other.current_hp <= 0 {
                 println!(
-                    "{} defeated a {}! (HP: {}, Lives: {})",
-                    self.name, other.name, self.current_hp, self.lives
+                    "{} defeated a {}! (HP: {}, Lives: {}, Exp: {})",
+                    self.name, other.name, self.current_hp, self.lives, self.exp
                 );
                 return FightResult::Win;
             }
@@ -281,7 +319,7 @@ enum CreatureType {
     Golem,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct StatPattern {
     hp: f32,
     attack: f32,
@@ -302,13 +340,28 @@ impl StatPattern {
             speed,
         }
     }
+
+    fn multiply(&mut self, multiplier: f32) {
+        self.hp *= multiplier;
+        self.attack *= multiplier;
+        self.defense *= multiplier;
+        self.magic *= multiplier;
+        self.wisdom *= multiplier;
+        self.speed *= multiplier;
+    }
 }
 
-fn get_enemy_stat_pattern(enemy_type: CreatureType) -> StatPattern {
-    match enemy_type {
-        CreatureType::Bat => StatPattern::new(0.5, 0.5, 0.5, 0.5, 0.5, 0.7),
+fn get_enemy_stat_pattern(enemy_type: CreatureType, multiplier: f32) -> StatPattern {
+    let mut stat_pattern = match enemy_type {
+        CreatureType::Bat => StatPattern::new(0.4, 0.4, 0.4, 0.4, 0.4, 2.0),
+        CreatureType::Orc => StatPattern::new(0.6, 0.6, 0.6, 0.2, 0.2, 0.4),
+        CreatureType::Kitsune => StatPattern::new(0.7, 0.2, 0.7, 1.0, 1.0, 1.5),
         _ => panic!(),
-    }
+    };
+
+    stat_pattern.multiply(multiplier);
+
+    stat_pattern
 }
 
 // https://en.touhouwiki.net/wiki/Category:Locations
@@ -464,12 +517,29 @@ impl Dungeon {
     }
 
     fn get_name(&self) -> String {
-        format!("{:?} of {:?} {:?}", self.location, self.element, self.noun)
+        format!(
+            "{:?} of {:?} {:?} (lv. {})",
+            self.location, self.element, self.noun, self.level
+        )
     }
 
-    fn create_enemy(&self, rng: &mut StdRng) -> Creature {
-        let creature_type = CreatureType::Bat;
-        let stat_pattern = get_enemy_stat_pattern(creature_type);
-        Creature::create(creature_type, &stat_pattern, self.level, rng)
+    fn create_enemy(&self, rng: &mut StdRng, is_boss: bool) -> Creature {
+        let creature_type = if self.level == 1 {
+            if !is_boss {
+                CreatureType::Bat
+            } else {
+                CreatureType::Orc
+            }
+        } else if self.level == 2 {
+            if !is_boss {
+                CreatureType::Orc
+            } else {
+                CreatureType::Kitsune
+            }
+        } else {
+            CreatureType::Kitsune
+        };
+        let stat_pattern = get_enemy_stat_pattern(creature_type, if is_boss { 1.15 } else { 1.0 });
+        Creature::create(creature_type, &stat_pattern, self.level + 1, rng)
     }
 }
