@@ -1,9 +1,15 @@
+#![feature(variant_count)]
+
+use rand::Rng;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::io;
 use std::io::prelude::*;
+use std::{io, mem};
+
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 fn main() {
-    println!("Please enter your name:");
+    /*println!("Please enter your name:");
     print!("> ");
     io::stdout().flush().unwrap();
 
@@ -14,9 +20,38 @@ fn main() {
     user_name = user_name.trim().to_string();
 
     let mut player = Creature::create_player(&user_name);
-    println!("{player:?}");
+    println!("{player:?}");*/
 
-    let mut game_result = Option::None;
+    let mut rng = rand::rng();
+
+    let seeds: Vec<u64> = vec![
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+        rng.random(),
+    ];
+
+    for st in seeds {
+        let mut s = DefaultHasher::new();
+        st.hash(&mut s);
+        let seed = s.finish();
+
+        let dungeon = Dungeon::from_hash(seed);
+
+        println!("{}", dungeon.get_name());
+    }
+
+    /*let mut game_result = Option::None;
     for _ in 0..5 {
         let mut enemy = Creature::create_player("Bat");
         //println!("{:?}", enemy);
@@ -33,7 +68,7 @@ fn main() {
         }
     }
 
-    println!("{game_result:?}");
+    println!("{game_result:?}");*/
 }
 
 #[derive(Debug)]
@@ -144,5 +179,160 @@ impl Creature {
             other.current_hp - damage
         );*/
         other.current_hp -= damage;
+    }
+}
+
+// https://en.touhouwiki.net/wiki/Category:Locations
+#[derive(Debug, FromPrimitive)]
+enum LocationType {
+    // Earthen
+    Cave,
+    Ravine,
+    Valley,
+    Land,
+    Plains,
+    Hills,
+    Path,
+    Realm,
+    Mountains,
+    Canyon,
+    Desert,
+    Jungle,
+    Cliffs,
+    Ridge,
+    Badlands,
+    Mesa,
+    Divide,
+    Cavern,
+    Tree,
+    // Buildings
+    Castle,
+    Temple,
+    Ruins,
+    Mansion,
+    Cemetery,
+    Prison,
+    Shrine,
+    Factory,
+    Laboratory,
+    Abattoir,
+    Hall,
+    Bunker,
+    Altar,
+    Remains,
+    // Water
+    Pond,
+    Canal,
+    Sea,
+    Lake,
+    Geyser,
+    Marsh,
+    Island,
+    Cove,
+    Isthmus,
+    Shoal,
+    Glacier,
+    Fjord,
+    // Wind
+    Skies,
+    Void,
+    // Fire
+    Volcano,
+}
+
+#[derive(Debug, FromPrimitive)]
+enum ElementAdjective {
+    // None
+    Unremarkable,
+    Lunar,
+    Lingering,
+    Mysterious,
+    False,
+    Abyssal,
+    Dubious,
+    Elegant,
+    Moonlit,
+    Spatial,
+    Unearthly,
+    Phantasmagorical,
+    Confounding,
+    // Fire
+    Burning,
+    Conflagrant,
+    Scorching,
+    Blazing,
+    Purifying,
+    // Water
+    Freezing,
+    Blizzardous,
+    Rainy,
+    Drowning,
+    // Wind
+    Voltaic,
+    Wuthering,
+    Tempestuous,
+    Howling,
+    // Earth
+    Worldly,
+    Twilight,
+    Geotic,
+    Abundant,
+    Crystalline,
+}
+
+#[derive(Debug, FromPrimitive)]
+enum Noun {
+    Heaven,
+    Hell,
+    Willows,
+    Light,
+    Dreams,
+    Truth,
+    Lies,
+    Hope,
+    Blood,
+    Doom,
+    Storms,
+    Serenity,
+    Tranquility,
+    Enlightenment,
+    Rains,
+    Rainbows,
+    Pandemonium,
+    Fantasies,
+    Magic,
+    Secrets,
+    Flames,
+    Pride,
+    Obscurity,
+    Resolve,
+}
+
+#[derive(Debug)]
+struct Dungeon {
+    pub location: LocationType,
+    pub element: ElementAdjective,
+    pub noun: Noun,
+}
+
+impl Dungeon {
+    fn from_hash(hash: u64) -> Dungeon {
+        let location_part = (hash & 0xFF) % mem::variant_count::<LocationType>() as u64;
+        let element_part = ((hash & 0xFF00) >> 8) % mem::variant_count::<ElementAdjective>() as u64;
+        let noun_part = ((hash & 0xFF0000) >> 16) % mem::variant_count::<Noun>() as u64;
+
+        let location: LocationType = FromPrimitive::from_u32(location_part as u32).unwrap();
+        let element: ElementAdjective = FromPrimitive::from_u32(element_part as u32).unwrap();
+        let noun: Noun = FromPrimitive::from_u32(noun_part as u32).unwrap();
+
+        Dungeon {
+            location,
+            element,
+            noun,
+        }
+    }
+
+    fn get_name(&self) -> String {
+        format!("{:?} of {:?} {:?}", self.location, self.element, self.noun)
     }
 }
