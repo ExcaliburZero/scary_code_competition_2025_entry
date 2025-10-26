@@ -69,12 +69,12 @@ impl Game {
         let player = Creature::create(
             CreatureType::Player,
             &StatPattern {
-                hp: 1.0,
-                attack: 1.0,
-                defense: 1.0,
-                magic: 1.0,
-                wisdom: 1.0,
-                speed: 1.0,
+                hp: 1.5,
+                attack: 2.0,
+                defense: 1.5,
+                magic: 2.0,
+                wisdom: 1.5,
+                speed: 1.5,
             },
             1,
             rng,
@@ -107,9 +107,10 @@ impl Game {
             let dungeon = &self.dungeons[i];
             println!("{} enters {}", self.player.name, dungeon.get_name());
 
-            for j in 0..5 {
+            let mut j = 0;
+            while j < 5 {
                 let mut enemy = dungeon.create_enemy(rng);
-                println!("{:?}", enemy);
+                // println!("{:?}", enemy);
 
                 let fight_result = self.player.fight(&mut enemy);
                 if let FightResult::Loss = fight_result {
@@ -118,8 +119,12 @@ impl Game {
                     } else {
                         self.player.lives -= 1;
                         self.player.current_hp = self.player.max_hp;
+                        j = 0;
+                        println!("{} re-enters {}", self.player.name, dungeon.get_name());
+                        continue;
                     }
                 }
+                j += 1;
             }
         }
 
@@ -168,18 +173,30 @@ impl Creature {
     ) -> Creature {
         let name = format!("{:?}", creature_type);
 
-        let max_hp =
-            (20.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
-        let attack =
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
-        let defense =
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
-        let magic =
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
-        let wisdom =
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
-        let speed =
-            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32;
+        let max_hp = max(
+            (20.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            5,
+        );
+        let attack = max(
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            1,
+        );
+        let defense = max(
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            1,
+        );
+        let magic = max(
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            1,
+        );
+        let wisdom = max(
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            1,
+        );
+        let speed = max(
+            (5.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
+            1,
+        );
 
         let current_hp = max_hp;
         let exp = 0;
@@ -210,10 +227,13 @@ impl Creature {
 
         loop {
             if self.current_hp <= 0 {
-                println!("{} lost a life!", self.name);
+                println!("{} lost to a {}!", self.name, other.name);
                 return FightResult::Loss;
             } else if other.current_hp <= 0 {
-                println!("{} is out of health!", other.name);
+                println!(
+                    "{} defeated a {}! (HP: {}, Lives: {})",
+                    self.name, other.name, self.current_hp, self.lives
+                );
                 return FightResult::Win;
             }
 
@@ -228,16 +248,19 @@ impl Creature {
     }
 
     fn attack(&self, other: &mut Creature) {
-        let damage = max(self.attack - other.defense, 1);
+        let physical_damage = max(self.attack - other.defense, 1);
+        let magic_damage = max(self.magic - other.wisdom, 1);
 
-        println!(
+        let damage = max(physical_damage, magic_damage);
+
+        /*println!(
             "{} does {} damage to {} ({} -> {})",
             self.name,
             damage,
             other.name,
             other.current_hp,
             other.current_hp - damage
-        );
+        );*/
         other.current_hp -= damage;
     }
 }
