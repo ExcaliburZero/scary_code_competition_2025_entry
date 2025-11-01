@@ -5,10 +5,12 @@ use rand::seq::IndexedRandom;
 use rand::{Rng, SeedableRng};
 use std::cmp::{max, min};
 use std::collections::HashMap;
+use std::fs::{read, read_to_string};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::prelude::*;
 use std::{io, mem};
 
+use clap::{Parser, Subcommand};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -24,27 +26,72 @@ const RESPONSE_TEMPLATES: [&str; 9] = [
     "Creation is an inviolate act, and those searching for the divine need not descend to Hell for fuel. That's why I don't go to Denny's anymore, {}.",
 ];
 
+#[derive(Parser)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Greet,
+    Test { filepath: String },
+}
+
 fn main() {
-    println!("Please enter your name:");
-    print!("> ");
-    io::stdout().flush().unwrap();
-    let user_name = read_user_name();
+    let cli = Cli::parse();
 
-    let mut rng = create_rng(&user_name);
-    let mut game = Game::from_rng(&mut rng);
+    match &cli.command {
+        Commands::Greet => {
+            println!("Please enter your name:");
+            print!("> ");
+            io::stdout().flush().unwrap();
+            let user_name = read_user_name();
 
-    let result = game.play(&mut rng);
-    match result {
-        GameResult::Win => println!("{}", game.response_template.replace("{}", &user_name)),
-        GameResult::Loss(num_dungeons_completed) => println!(
-            "{}",
-            game.response_template_parts
-                .iter()
-                .take(num_dungeons_completed as usize)
-                .map(|s| s.replace("{}", &user_name))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ),
+            let mut rng = create_rng(&user_name);
+            let mut game = Game::from_rng(&mut rng);
+
+            let result = game.play(&mut rng);
+            match result {
+                GameResult::Win => println!("{}", game.response_template.replace("{}", &user_name)),
+                GameResult::Loss(num_dungeons_completed) => println!(
+                    "{}",
+                    game.response_template_parts
+                        .iter()
+                        .take(num_dungeons_completed as usize)
+                        .map(|s| s.replace("{}", &user_name))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ),
+            }
+        }
+        Commands::Test { filepath } => {
+            let names: Vec<String> = read_to_string(filepath)
+                .unwrap()
+                .lines()
+                .map(String::from)
+                .collect();
+
+            println!("name,num_parts,result");
+            for name in names.iter() {
+                let mut rng = create_rng(&name);
+                let mut game = Game::from_rng(&mut rng);
+
+                let result = game.play(&mut rng);
+
+                let result_str = match result {
+                    GameResult::Win => "win",
+                    GameResult::Loss(_) => "loss",
+                };
+
+                println!(
+                    "{},{},{}",
+                    name,
+                    game.response_template_parts.len(),
+                    result_str
+                );
+            }
+        }
     }
 }
 

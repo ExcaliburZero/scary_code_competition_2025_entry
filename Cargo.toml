@@ -9,3 +9,4 @@ edition = "2024"
 num-traits = "0.2"
 num-derive = "0.4"
 rand = "0.10.0-rc.0"
+clap = { version = "4.5.51", features = ["derive"] }
