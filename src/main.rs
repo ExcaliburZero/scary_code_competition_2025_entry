@@ -75,7 +75,7 @@ fn main() {
                 .map(String::from)
                 .collect();
 
-            println!("name,num_parts,progress,result,greeting");
+            println!("name,num_parts,progress,progress_percent,result,greeting");
             for name in names.iter() {
                 let mut rng = create_rng(&name);
                 let mut game = Game::from_rng(&mut rng);
@@ -88,10 +88,11 @@ fn main() {
                 };
 
                 println!(
-                    "{},{},{},{},\"{}\"",
+                    "{},{},{},{},{},\"{}\"",
                     name,
                     game.response_template_parts.len(),
                     progress,
+                    (progress as f64) / (game.response_template_parts.len() as f64),
                     result_str,
                     game.response_template_parts
                         .iter()
