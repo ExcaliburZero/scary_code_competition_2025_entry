@@ -30,6 +30,9 @@ const RESPONSE_TEMPLATES: [&str; 9] = [
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    #[arg(long, default_value_t = 0)]
+    verbose: u32,
 }
 
 #[derive(Subcommand)]
@@ -51,7 +54,7 @@ fn main() {
             let mut rng = create_rng(&user_name);
             let mut game = Game::from_rng(&mut rng);
 
-            let result = game.play(&mut rng);
+            let result = game.play(&mut rng, cli.verbose);
             match result {
                 GameResult::Win => println!("{}", game.response_template.replace("{}", &user_name)),
                 GameResult::Loss(num_dungeons_completed) => println!(
@@ -72,23 +75,30 @@ fn main() {
                 .map(String::from)
                 .collect();
 
-            println!("name,num_parts,result");
+            println!("name,num_parts,progress,result,greeting");
             for name in names.iter() {
                 let mut rng = create_rng(&name);
                 let mut game = Game::from_rng(&mut rng);
 
-                let result = game.play(&mut rng);
+                let result = game.play(&mut rng, cli.verbose);
 
-                let result_str = match result {
-                    GameResult::Win => "win",
-                    GameResult::Loss(_) => "loss",
+                let (progress, result_str) = match result {
+                    GameResult::Win => (game.response_template_parts.len(), "win"),
+                    GameResult::Loss(progress) => (progress as usize, "loss"),
                 };
 
                 println!(
-                    "{},{},{}",
+                    "{},{},{},{},\"{}\"",
                     name,
                     game.response_template_parts.len(),
-                    result_str
+                    progress,
+                    result_str,
+                    game.response_template_parts
+                        .iter()
+                        .take(progress as usize)
+                        .map(|s| s.replace("{}", &name))
+                        .collect::<Vec<_>>()
+                        .join(" ")
                 );
             }
         }
@@ -155,8 +165,11 @@ impl Game {
         }
     }
 
-    fn play(&mut self, rng: &mut StdRng) -> GameResult {
-        println!("{:?}", self.player);
+    fn play(&mut self, rng: &mut StdRng, log_level: u32) -> GameResult {
+        if log_level > 0 {
+            println!("{:?}", self.player);
+        }
+
         let mut i = 0;
         let mut max_dungeon_won = 0;
         let mut reentering = false;
@@ -164,7 +177,7 @@ impl Game {
             let dungeon = &self.dungeons[i];
             self.player.current_hp = self.player.max_hp;
 
-            if !reentering {
+            if !reentering && log_level > 0 {
                 println!("-------------------------");
                 println!("{} enters {}", self.player.name, dungeon.get_name());
             }
@@ -178,7 +191,7 @@ impl Game {
                 let mut enemy = dungeon.create_enemy(rng, j == 4);
                 //println!("{:?}", enemy);
 
-                let fight_result = self.player.fight(&mut enemy);
+                let fight_result = self.player.fight(&mut enemy, log_level);
                 if let FightResult::Loss = fight_result {
                     if self.player.lives == 0 {
                         return GameResult::Loss(i as i32);
@@ -194,12 +207,14 @@ impl Game {
                         j = 0;
                         reentering = true;
                         let dungeon = &self.dungeons[i];
-                        println!("-------------------------");
-                        println!("{} re-enters {}", self.player.name, dungeon.get_name());
+                        if log_level > 0 {
+                            println!("-------------------------");
+                            println!("{} re-enters {}", self.player.name, dungeon.get_name());
+                        }
                         break;
                     }
                 }
-                self.player.award_win(&enemy);
+                self.player.award_win(&enemy, log_level);
                 j += 1;
             }
 
@@ -302,14 +317,16 @@ impl Creature {
         }
     }
 
-    fn award_win(&mut self, other: &Creature) {
+    fn award_win(&mut self, other: &Creature, log_level: u32) {
         let exp_increase = max(other.level - (self.level - 1), 1) * 12;
 
         self.exp += exp_increase;
         while self.exp >= 100 {
             self.level += 1;
             self.lives = min(self.lives + 1, 3);
-            println!("{} leveled up to level {}!", self.name, self.level);
+            if log_level > 0 {
+                println!("{} leveled up to level {}!", self.name, self.level);
+            }
 
             self.exp = self.exp - 100;
 
@@ -324,7 +341,7 @@ impl Creature {
         }
     }
 
-    fn fight(&mut self, other: &mut Creature) -> FightResult {
+    fn fight(&mut self, other: &mut Creature, log_level: u32) -> FightResult {
         let mut turn = if self.speed >= other.speed {
             Turn::Player
         } else {
@@ -333,13 +350,17 @@ impl Creature {
 
         loop {
             if self.current_hp <= 0 {
-                println!("{} lost to a {}!", self.name, other.name);
+                if log_level > 0 {
+                    println!("{} lost to a {}!", self.name, other.name);
+                }
                 return FightResult::Loss;
             } else if other.current_hp <= 0 {
-                println!(
-                    "{} defeated a {}! (HP: {}, Lives: {}, Exp: {})",
-                    self.name, other.name, self.current_hp, self.lives, self.exp
-                );
+                if log_level > 1 {
+                    println!(
+                        "{} defeated a {}! (HP: {}, Lives: {}, Exp: {})",
+                        self.name, other.name, self.current_hp, self.lives, self.exp
+                    );
+                }
                 return FightResult::Win;
             }
 
