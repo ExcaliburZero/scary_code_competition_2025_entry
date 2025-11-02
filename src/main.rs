@@ -130,7 +130,7 @@ struct Game {
 
 impl Game {
     fn from_rng(rng: &mut StdRng) -> Game {
-        let player = Creature::create(
+        let mut player = Creature::create(
             CreatureType::Player,
             &StatPattern {
                 hp: 1.5 + rng.random_range(-0.5..0.5),
@@ -144,6 +144,9 @@ impl Game {
             false,
             rng,
         );
+
+        player.attack += 1;
+        player.magic += 1;
 
         let response_template = RESPONSE_TEMPLATES
             [(rng.random::<u64>() % RESPONSE_TEMPLATES.len() as u64) as usize]
@@ -189,7 +192,7 @@ impl Game {
             let mut j = 0;
             while j < 5 {
                 let dungeon = &self.dungeons[i];
-                let mut enemy = dungeon.create_enemy(rng, j == 4);
+                let mut enemy = dungeon.create_enemy(rng, j == 4, self.dungeons.len());
                 //println!("{:?}", enemy);
 
                 let fight_result = self.player.fight(&mut enemy, log_level);
@@ -217,6 +220,14 @@ impl Game {
                 }
                 self.player.award_win(&enemy, log_level);
                 j += 1;
+
+                if j == 5 && log_level > 0 {
+                    println!(
+                        "{} completes {}!",
+                        self.player.name,
+                        dungeon.get_name_no_level()
+                    );
+                }
             }
 
             if j != 0 {
@@ -617,7 +628,11 @@ impl Dungeon {
         )
     }
 
-    fn create_enemy(&self, rng: &mut StdRng, is_boss: bool) -> Creature {
+    fn get_name_no_level(&self) -> String {
+        format!("{:?} of {:?} {:?}", self.location, self.element, self.noun)
+    }
+
+    fn create_enemy(&self, rng: &mut StdRng, is_boss: bool, num_levels: usize) -> Creature {
         let creature_type_mapping = HashMap::from([
             (
                 (1, false),
@@ -662,7 +677,10 @@ impl Dungeon {
             .unwrap();
 
         let creature_type = *creature_types.choose(rng).unwrap();
-        let stat_pattern = get_enemy_stat_pattern(creature_type, if is_boss { 2.0 } else { 1.0 });
+        let stat_pattern = get_enemy_stat_pattern(
+            creature_type,
+            if is_boss { 2.0 } else { 1.0 } + self.level as f32 / num_levels as f32 * 0.4,
+        );
         Creature::create(creature_type, &stat_pattern, self.level + 1, is_boss, rng)
     }
 }
