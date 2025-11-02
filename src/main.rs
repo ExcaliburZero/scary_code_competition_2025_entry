@@ -280,7 +280,14 @@ impl Creature {
         is_boss: bool,
         rng: &mut StdRng,
     ) -> Creature {
-        let name = format!("{}{:?}", if is_boss { "Boss " } else { "" }, creature_type);
+        let name = format!(
+            "{}{}",
+            if is_boss { "Boss " } else { "" },
+            match creature_type {
+                CreatureType::Player => "Hero".to_string(),
+                _ => format!("{:?}", creature_type),
+            }
+        );
 
         let max_hp = max(
             (20.0 * stat_pattern.hp * level as f32 + (5.0 * rng.random_range(-1.0..1.0))) as i32,
