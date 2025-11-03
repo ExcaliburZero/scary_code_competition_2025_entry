@@ -5,7 +5,7 @@ use rand::seq::IndexedRandom;
 use rand::{Rng, SeedableRng};
 use std::cmp::{max, min};
 use std::collections::HashMap;
-use std::fs::{read, read_to_string};
+use std::fs::read_to_string;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::prelude::*;
 use std::{io, mem};
@@ -398,15 +398,6 @@ impl Creature {
         let magic_damage = max(self.magic - other.wisdom, 1);
 
         let damage = max(physical_damage, magic_damage);
-
-        /*println!(
-            "{} does {} damage to {} ({} -> {})",
-            self.name,
-            damage,
-            other.name,
-            other.current_hp,
-            other.current_hp - damage
-        );*/
         other.current_hp -= damage;
     }
 }
@@ -414,18 +405,13 @@ impl Creature {
 #[derive(Clone, Copy, Debug)]
 enum CreatureType {
     Player,
-    // Common
+    // Enemies
     Bat,
     Dog,
-    Goblin,
     Slime,
     Orc,
-    // Uncommon
     Kitsune,
     Pixie,
-    // Bosses
-    HighOrc,
-    Golem,
 }
 
 #[derive(Clone, Debug)]
